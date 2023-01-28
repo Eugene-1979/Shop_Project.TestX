@@ -119,10 +119,12 @@ namespace Shop_Project.TestX
                 builder.ConfigureTestServices(servCol =>
                 {
 
-
+               /* удаляем существующ контекст базы данных*/
                     ServiceDescriptor? serviceDescriptor = servCol.FirstOrDefault(q => q.ServiceType == typeof(DbContextOptions<AppDbContent>));
                     servCol.Remove(serviceDescriptor);
 
+
+                   /* создаём базу inMemory*/
                     servCol.AddDbContext<AppDbContent>(option =>
                     option.UseInMemoryDatabase("_ShopBase11234")
                     );
@@ -134,7 +136,9 @@ namespace Shop_Project.TestX
                           
             });
             
-             AppDbContent? appDbContent = webApplicationFactory.Services.CreateScope().ServiceProvider.GetService<AppDbContent>();
+             
+            AppDbContent? appDbContent = webApplicationFactory.Services.CreateScope().ServiceProvider.GetService<AppDbContent>();
+         /*  добавляем 2 Ордера в InMemory*/
             List<Order> orders = new() { new Order(), new Order() };
            await appDbContent.Orders.AddRangeAsync(orders);
             await appDbContent.SaveChangesAsync();
@@ -144,7 +148,7 @@ namespace Shop_Project.TestX
             Assert.Equal(HttpStatusCode.OK, httpResponseMessage.StatusCode);
             string v = await httpResponseMessage.Content.ReadAsStringAsync();
             int temp = int.Parse(v);
-
+           /* return Ok(_context.Orders.Count()) ----сверяем Count ордер */
             Assert.Equal(orders.Count, temp);
 
             }
