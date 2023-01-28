@@ -8,6 +8,13 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.Extensions.DependencyInjection;
+using Shop_Project.Repository;
+using Moq;
+using Shop_Project.Db;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Shop_Project.Models;
+using Microsoft.EntityFrameworkCore;
+using Shop_Project.Data;
 
 namespace Shop_Project.TestX
     {
@@ -23,8 +30,8 @@ namespace Shop_Project.TestX
         [Theory]
         [InlineData("/")]
         [InlineData("Home/Index")]
-      /*  [InlineData("Home/ViewUser?id=7")]
-        [InlineData("Home/Login")]*/
+        /*  [InlineData("Home/ViewUser?id=7")]
+          [InlineData("Home/Login")]*/
         public async Task GetPages(string url)
             {
             // Arrange
@@ -39,7 +46,7 @@ namespace Shop_Project.TestX
 
 
 
-/*        [Fact]
+        [Fact]
         public async Task GetRedirectIfNotAuth()
             {
             // Arrange
@@ -49,10 +56,10 @@ namespace Shop_Project.TestX
                     AllowAutoRedirect = false
                     });
             // Act
-            var response = await client.GetAsync("/Home/EditUser?id=7");
+            var response = await client.GetAsync("/Products/Edit?id=1");
             // Assert
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-            Assert.Contains("/Home/Login",
+            Assert.Contains("Identity/Account/Login",
                 response.Headers.Location?.OriginalString);
             }
 
@@ -75,9 +82,71 @@ namespace Shop_Project.TestX
             client.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue(scheme: "TestScheme");
             //Act
-            var response = await client.GetAsync("/Home/EditUser?id=7");
+            var response = await client.GetAsync("/Test/Index");
             // Assert
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            }
+
+        [Fact]
+        public async Task TestWithMock()
+            {
+            WebApplicationFactory<Program> webApplicationFactory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(service =>
+            {/*Находим и удаляем сервис ITest и подменяем результат на True*/
+                var serv = service.FirstOrDefault(q => q.ServiceType == typeof(ITest));
+                service.Remove(serv);
+                /* Реализуем через Moq , и меняем ReturnFalse() == true*/
+                Mock<ITest> mock = new Mock<ITest>();
+                mock.Setup(q => q.ReturnFalse()).Returns(() => true);
+                /*  Добавляем Mock*/
+                service.AddScoped(q => mock.Object);
+            }
+             )
+
+            );
+
+            HttpClient httpClient = webApplicationFactory.CreateClient();
+            HttpResponseMessage httpResponseMessage = await httpClient.GetAsync("Test1");
+
+            Assert.Equal(HttpStatusCode.OK, httpResponseMessage.StatusCode);
+            }
+
+
+        [Fact]
+        public async Task TestWithMockDb()
+            {
+            WebApplicationFactory<Program> webApplicationFactory = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureTestServices(servCol =>
+                {
+
+
+                    ServiceDescriptor? serviceDescriptor = servCol.FirstOrDefault(q => q.ServiceType == typeof(DbContextOptions<AppDbContent>));
+                    servCol.Remove(serviceDescriptor);
+
+                    servCol.AddDbContext<AppDbContent>(option =>
+                    option.UseInMemoryDatabase("_ShopBase11234")
+                    );
+
+                    /*  Mock<AppDbContent> mock = new Mock<AppDbContent>();
+                      mock.Setup(q=>q.Products).Returns(()=>new DbSet<Product>())*/
+
+                });
+                          
+            });
+            
+             AppDbContent? appDbContent = webApplicationFactory.Services.CreateScope().ServiceProvider.GetService<AppDbContent>();
+            List<Order> orders = new() { new Order(), new Order() };
+           await appDbContent.Orders.AddRangeAsync(orders);
+            await appDbContent.SaveChangesAsync();
+
+            HttpClient httpClient = webApplicationFactory.CreateClient();
+            HttpResponseMessage httpResponseMessage = await httpClient.GetAsync("Test2");
+            Assert.Equal(HttpStatusCode.OK, httpResponseMessage.StatusCode);
+            string v = await httpResponseMessage.Content.ReadAsStringAsync();
+            int temp = int.Parse(v);
+
+            Assert.Equal(orders.Count, temp);
+
             }
         }
 
@@ -101,7 +170,7 @@ namespace Shop_Project.TestX
             var ticket = new AuthenticationTicket(principal, "TestScheme");
             var result = AuthenticateResult.Success(ticket);
             return Task.FromResult(result);
-            }*/
+            }
 
 
 
